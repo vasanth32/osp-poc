@@ -1,0 +1,23 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=YOUR_SERVER;Database=FeeManagementDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+  },
+  "AwsS3": {
+    "BucketName": "your-bucket-name",
+    "Region": "us-east-1",
+    "AccessKey": "YOUR_ACCESS_KEY",
+    "SecretKey": "YOUR_SECRET_KEY"
+  },
+  "JwtSettings": {
+    "Issuer": "FeeManagementService",
+    "Audience": "FeeManagementService",
+    "SecretKey": "your-super-secret-key-that-should-be-at-least-32-characters-long"
+  }
+}
+

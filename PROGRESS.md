@@ -233,8 +233,9 @@ ASP.NET Core 8.0 Web API project for managing school fees with image upload capa
    - ✅ AWS S3 Configuration:
      - BucketName: `school-platform-fees-vasanth`
      - Region: `us-east-1`
-     - AccessKey: `YOUR_ACCESS_KEY`
-     - SecretKey: `YOUR_SECRET_KEY`
+     - AccessKey: `YOUR_ACCESS_KEY` (configure with actual credentials)
+     - SecretKey: `YOUR_SECRET_KEY` (configure with actual credentials)
+     - **Note:** Real credentials should be stored in environment variables or secrets manager, not in source control
 
 ### Key Features:
 - **Presigned URL Approach:**
@@ -336,6 +337,38 @@ FeeManagementService/
 - **Step 2:** Database Model and DbContext ✅
 - **Step 3:** Request/Response Models and Validation ✅
 - **Step 4:** AWS S3 Service (Presigned URL Approach) ✅
+
+---
+
+## 🔒 Security Best Practices
+
+### Credential Management:
+- ✅ **AWS Credentials:** Removed from source control
+- ✅ **.gitignore:** Created to exclude sensitive files
+- ✅ **appsettings.json:** Uses placeholder values
+- ✅ **appsettings.Development.json.example:** Template file created for reference
+
+### Recommended Approach:
+1. **For Development:**
+   - Use `appsettings.Development.json` (excluded from git)
+   - Store actual credentials locally only
+   - Never commit real credentials
+
+2. **For Production:**
+   - Use environment variables
+   - Use Azure Key Vault / AWS Secrets Manager
+   - Use IAM roles when possible (instead of access keys)
+
+3. **Git Configuration:**
+   - `.gitignore` excludes sensitive files
+   - `bin/` and `obj/` folders excluded
+   - Development configuration files excluded
+
+### Files to Keep Secure:
+- `appsettings.Development.json` - Local development credentials
+- `appsettings.Production.json` - Production credentials
+- `.env` files - Environment variables
+- AWS credentials files
 
 ---
 
