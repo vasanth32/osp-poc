@@ -167,3 +167,4 @@ D:\PracticeProjects\Edlio poc\FeeManagementService\obj\Debug\net8.0\refint\FeeMa
 D:\PracticeProjects\Edlio poc\FeeManagementService\obj\Debug\net8.0\FeeManagementService.pdb
 D:\PracticeProjects\Edlio poc\FeeManagementService\obj\Debug\net8.0\FeeManagementService.genruntimeconfig.cache
 D:\PracticeProjects\Edlio poc\FeeManagementService\obj\Debug\net8.0\ref\FeeManagementService.dll
+D:\PracticeProjects\Edlio poc\FeeManagementService\obj\Debug\net8.0\FeeManagementService.sourcelink.json

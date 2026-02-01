@@ -1,4 +1,7 @@
 using System.Text;
+using Amazon;
+using Amazon.S3;
+using Amazon.Runtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -6,6 +9,7 @@ using Microsoft.OpenApi.Models;
 using Serilog;
 using FeeManagementService.Data;
 using FeeManagementService.Configuration;
+using FeeManagementService.Services;
 using FluentValidation.AspNetCore;
 using FluentValidation;
 using FeeManagementService.Validators;
@@ -56,6 +60,31 @@ if (jwtSettings != null)
 // Configure AWS S3 Settings
 builder.Services.Configure<AwsS3Settings>(builder.Configuration.GetSection("AwsS3"));
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+
+// Configure AWS S3 Client
+var awsS3Settings = builder.Configuration.GetSection("AwsS3").Get<AwsS3Settings>();
+if (awsS3Settings != null)
+{
+    IAmazonS3 s3Client;
+    
+    if (!string.IsNullOrWhiteSpace(awsS3Settings.AccessKey) && 
+        !string.IsNullOrWhiteSpace(awsS3Settings.SecretKey))
+    {
+        // Use BasicAWSCredentials if AccessKey and SecretKey are provided
+        var credentials = new BasicAWSCredentials(awsS3Settings.AccessKey, awsS3Settings.SecretKey);
+        var region = RegionEndpoint.GetBySystemName(awsS3Settings.Region);
+        s3Client = new AmazonS3Client(credentials, region);
+    }
+    else
+    {
+        // Use default credential chain (IAM role, environment variables, etc.)
+        var region = RegionEndpoint.GetBySystemName(awsS3Settings.Region);
+        s3Client = new AmazonS3Client(region);
+    }
+    
+    builder.Services.AddSingleton<IAmazonS3>(s3Client);
+    builder.Services.AddScoped<IS3Service, S3Service>();
+}
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
