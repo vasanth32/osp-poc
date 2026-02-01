@@ -1,0 +1,6 @@
+@FeeManagementService_HostAddress = http://localhost:5297
+
+GET {{FeeManagementService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
