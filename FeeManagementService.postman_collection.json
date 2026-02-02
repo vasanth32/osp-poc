@@ -1,0 +1,571 @@
+{
+	"info": {
+		"_postman_id": "fee-management-service-collection",
+		"name": "Fee Management Service",
+		"description": "Complete API collection for Fee Management Service with presigned URL image uploads.\n\n**Workflow:**\n1. Login (Get JWT Token) - Authenticate and get JWT token\n2. Generate Presigned URL - Get S3 upload URL\n3. Upload Image to S3 - Upload image directly to S3\n4. Create Fee - Create fee with uploaded image URL\n\n**Collection Variables:**\n- `baseUrl`: API base URL (default: http://localhost:5297)\n- `jwtToken`: JWT token (auto-populated after login)\n- `schoolId`: School identifier (default: 550e8400-e29b-41d4-a716-446655440000)\n- `userId`: User identifier (auto-populated after login)\n- `feeId`: Fee identifier for presigned URL generation\n- `presignedUrl`: S3 presigned URL (auto-populated)\n- `imageUrl`: Final S3 image URL (auto-populated)\n- `s3Key`: S3 object key (auto-populated)\n- `createdFeeId`: Created fee ID (auto-populated)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Login (Get JWT Token)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has token\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('token');",
+							"    pm.expect(jsonData.token).to.be.a('string');",
+							"});",
+							"",
+							"pm.test(\"Response has user info\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('userId');",
+							"    pm.expect(jsonData).to.have.property('schoolId');",
+							"    pm.expect(jsonData).to.have.property('role');",
+							"});",
+							"",
+							"if (pm.response.code === 200) {",
+							"    var jsonData = pm.response.json();",
+							"    pm.collectionVariables.set(\"jwtToken\", jsonData.token);",
+							"    pm.collectionVariables.set(\"userId\", jsonData.userId);",
+							"    pm.collectionVariables.set(\"schoolId\", jsonData.schoolId);",
+							"    console.log(\"JWT Token saved to collection variable: jwtToken\");",
+							"    console.log(\"User ID saved: \" + jsonData.userId);",
+							"    console.log(\"School ID saved: \" + jsonData.schoolId);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"username\": \"admin@school.com\",\n  \"password\": \"password123\",\n  \"schoolId\": \"{{schoolId}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/auth/login",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"login"
+					]
+				},
+				"description": "Authenticates a user and returns a JWT token. The token is automatically saved to the 'jwtToken' collection variable for use in subsequent requests.\n\n**Note:** For POC, any valid username/password combination is accepted. In production, this would validate against a user database.\n\n**Request Body:**\n- `username`: User identifier (e.g., email)\n- `password`: User password\n- `schoolId`: School identifier (GUID)\n\n**Response:**\n- `token`: JWT token (automatically saved to collection variable)\n- `expiresAt`: Token expiration time\n- `userId`: User identifier\n- `schoolId`: School identifier\n- `role`: User role (e.g., \"SchoolAdmin\")"
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Presigned URL",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has presignedUrl\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('presignedUrl');",
+							"    pm.expect(jsonData.presignedUrl).to.include('amazonaws.com');",
+							"});",
+							"",
+							"pm.test(\"Response has imageUrl\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('imageUrl');",
+							"});",
+							"",
+							"if (pm.response.code === 200) {",
+							"    var jsonData = pm.response.json();",
+							"    pm.collectionVariables.set(\"presignedUrl\", jsonData.presignedUrl);",
+							"    pm.collectionVariables.set(\"imageUrl\", jsonData.imageUrl);",
+							"    pm.collectionVariables.set(\"s3Key\", jsonData.s3Key);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"feeId\": \"{{feeId}}\",\n  \"fileName\": \"test-image.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 102400\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/fees/presigned-url",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"fees",
+						"presigned-url"
+					]
+				},
+				"description": "Generates a presigned URL for direct image upload to S3. The presigned URL expires after 10 minutes (default)."
+			},
+			"response": []
+		},
+		{
+			"name": "Upload Image to S3",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "image/jpeg"
+					},
+					{
+						"key": "x-amz-server-side-encryption",
+						"value": "AES256"
+					}
+				],
+				"body": {
+					"mode": "binary",
+					"binary": []
+				},
+				"url": {
+					"raw": "{{presignedUrl}}",
+					"host": [
+						"{{presignedUrl}}"
+					]
+				},
+				"description": "Uploads an image file directly to S3 using the presigned URL. This request goes directly to AWS S3, not to your API server.\n\n**IMPORTANT:** This request has NO Authorization header because presigned URLs contain authentication in the URL itself.\n\n**Instructions:**\n1. Select this request\n2. Go to Body tab\n3. Select 'binary' option\n4. Click 'Select File' and choose an image (JPG, PNG, or WebP, max 5MB)\n5. Send the request"
+			},
+			"response": []
+		},
+		{
+			"name": "Create Fee",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test(\"Response has fee ID\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData.id).to.be.a('string');",
+							"});",
+							"",
+							"pm.test(\"Fee has correct schoolId\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.schoolId).to.eql(pm.collectionVariables.get(\"schoolId\"));",
+							"});",
+							"",
+							"if (pm.response.code === 201) {",
+							"    var jsonData = pm.response.json();",
+							"    pm.collectionVariables.set(\"createdFeeId\", jsonData.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Class Fee - Semester 1\",\n  \"description\": \"Fee for first semester classes including all subjects\",\n  \"amount\": 1500.00,\n  \"feeType\": \"ClassFee\",\n  \"imageUrl\": \"{{imageUrl}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/fees",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"fees"
+					]
+				},
+				"description": "Creates a new fee for the authenticated school. The imageUrl should be the URL returned from the presigned URL response after uploading to S3."
+			},
+			"response": []
+		},
+		{
+			"name": "Create Fee (Without Image)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test(\"ImageUrl is null\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.imageUrl).to.be.null;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Transport Fee\",\n  \"description\": \"Monthly transport fee\",\n  \"amount\": 500.00,\n  \"feeType\": \"TransportFee\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/fees",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"fees"
+					]
+				},
+				"description": "Creates a fee without an image. The imageUrl field is omitted."
+			},
+			"response": []
+		},
+		{
+			"name": "Error Cases",
+			"item": [
+				{
+					"name": "Missing Required Fields",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"\",\n  \"amount\": 1500.00\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"fees"
+							]
+						},
+						"description": "Tests validation error when required fields are missing. Expected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Amount (Negative)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Test Fee\",\n  \"amount\": -100,\n  \"feeType\": \"ClassFee\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"fees"
+							]
+						},
+						"description": "Tests validation error for negative amount. Expected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "File Too Large (>5MB)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"feeId\": \"fee-123\",\n  \"fileName\": \"large-image.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 6000000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fees/presigned-url",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"fees",
+								"presigned-url"
+							]
+						},
+						"description": "Tests validation error for file size exceeding 5MB. Expected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Content Type",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"feeId\": \"fee-123\",\n  \"fileName\": \"document.pdf\",\n  \"contentType\": \"application/pdf\",\n  \"fileSize\": 102400\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fees/presigned-url",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"fees",
+								"presigned-url"
+							]
+						},
+						"description": "Tests validation error for invalid content type. Expected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid ImageUrl Format",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Test Fee\",\n  \"amount\": 1500.00,\n  \"feeType\": \"ClassFee\",\n  \"imageUrl\": \"https://invalid-url.com/image.jpg\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"fees"
+							]
+						},
+						"description": "Tests validation error for invalid S3 URL format. Expected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Unauthorized (No Token)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Test Fee\",\n  \"amount\": 1500.00,\n  \"feeType\": \"ClassFee\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"fees"
+							]
+						},
+						"description": "Tests unauthorized access without JWT token. Expected: 401 Unauthorized"
+					},
+					"response": []
+				}
+			],
+			"description": "Collection of error test cases"
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5297",
+			"type": "string"
+		},
+		{
+			"key": "jwtToken",
+			"value": "your-jwt-token-here",
+			"type": "string"
+		},
+		{
+			"key": "schoolId",
+			"value": "550e8400-e29b-41d4-a716-446655440000",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "user-123",
+			"type": "string"
+		},
+		{
+			"key": "feeId",
+			"value": "fee-123",
+			"type": "string"
+		},
+		{
+			"key": "presignedUrl",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "imageUrl",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "s3Key",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "createdFeeId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{jwtToken}}",
+				"type": "string"
+			}
+		]
+	}
+}

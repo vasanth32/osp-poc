@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Amazon;
 using Amazon.S3;
@@ -10,6 +11,7 @@ using Serilog;
 using FeeManagementService.Data;
 using FeeManagementService.Configuration;
 using FeeManagementService.Services;
+using FeeManagementService.Middleware;
 using FluentValidation.AspNetCore;
 using FluentValidation;
 using FeeManagementService.Validators;
@@ -20,7 +22,14 @@ var builder = WebApplication.CreateBuilder(args);
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console()
+    .Enrich.WithProperty("Application", "FeeManagementService")
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: "logs/fee-management-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
     .CreateLogger();
 
 builder.Host.UseSerilog();
@@ -52,7 +61,10 @@ if (jwtSettings != null)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSettings.Issuer,
             ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+            // Map role claims correctly for [Authorize(Roles = "...")] to work
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.Name
         };
     });
 }
@@ -86,6 +98,12 @@ if (awsS3Settings != null)
     builder.Services.AddScoped<IS3Service, S3Service>();
 }
 
+// Register Fee Service
+builder.Services.AddScoped<IFeeService, FeeService>();
+
+// Register JWT Token Service
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddFluentValidationClientsideAdapters();
@@ -110,8 +128,21 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Fee Management Service API",
         Version = "v1",
-        Description = "ASP.NET Core 8.0 Web API for Fee Management"
+        Description = "ASP.NET Core 8.0 Web API for Fee Management with AWS S3 image uploads using presigned URLs",
+        Contact = new OpenApiContact
+        {
+            Name = "Fee Management Service",
+            Email = "support@feemanagement.com"
+        }
     });
+
+    // Include XML comments
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+    }
 
     // Add JWT Authentication to Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -153,12 +184,22 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Request Logging Middleware (should be early in pipeline)
+app.UseMiddleware<RequestLoggingMiddleware>();
+
 // Use CORS
 app.UseCors("AllowAll");
 
 // Use Authentication & Authorization
 app.UseAuthentication();
+
+// Tenant Middleware - Extract SchoolId, UserId, and Role from JWT
+app.UseMiddleware<TenantMiddleware>();
+
 app.UseAuthorization();
+
+// Global Exception Handler (should be after all middleware, before controllers)
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 // Map Controllers
 app.MapControllers();

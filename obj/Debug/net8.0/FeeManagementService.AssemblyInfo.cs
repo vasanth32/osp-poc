@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FeeManagementService")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0abe8cde60a32def0c9d2fc87773156a8c7dda8d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bc98f61e779844b960596428d96c3b37dfaa8c7b")]
 [assembly: System.Reflection.AssemblyProductAttribute("FeeManagementService")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FeeManagementService")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

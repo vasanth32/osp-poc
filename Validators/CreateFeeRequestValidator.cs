@@ -46,6 +46,16 @@ public class CreateFeeRequestValidator : AbstractValidator<CreateFeeRequest>
             .Must(BeValidImageFormat)
             .WithMessage("Image must be a valid image file.")
             .When(x => x.Image != null);
+
+        RuleFor(x => x.ImageUrl)
+            .MaximumLength(500)
+            .WithMessage("ImageUrl must not exceed 500 characters.")
+            .When(x => !string.IsNullOrEmpty(x.ImageUrl));
+
+        RuleFor(x => x.ImageUrl)
+            .Must(BeValidS3Url)
+            .WithMessage("ImageUrl must be a valid S3 URL format (e.g., https://bucket.s3.region.amazonaws.com/key).")
+            .When(x => !string.IsNullOrEmpty(x.ImageUrl));
     }
 
     private bool BeValidFeeType(string feeType)
@@ -92,6 +102,19 @@ public class CreateFeeRequestValidator : AbstractValidator<CreateFeeRequest>
 
         // Also check file extension as fallback
         return HaveValidExtension(file);
+    }
+
+    private bool BeValidS3Url(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return true;
+
+        // S3 URL pattern: https://bucket.s3.region.amazonaws.com/key
+        var s3UrlPattern = new Regex(
+            @"^https?://[^/]+\.s3[^/]*\.amazonaws\.com/.+$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        return s3UrlPattern.IsMatch(url);
     }
 }
 

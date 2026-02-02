@@ -1353,7 +1353,7 @@ Add global error handling and logging:
 
 2. Configure Serilog in Program.cs:
    - Write to Console
-   - Write to File (optional)
+   - Write to File 
    - Include correlation IDs for request tracking
    - Log level from appsettings.json
 
