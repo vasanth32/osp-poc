@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using FeeManagementService.Middleware;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
 
 namespace FeeManagementService.Middleware;
 
@@ -9,15 +11,18 @@ public class GlobalExceptionHandlerMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionHandlerMiddleware> _logger;
     private readonly IHostEnvironment _environment;
+    private readonly TelemetryClient? _telemetryClient;
 
     public GlobalExceptionHandlerMiddleware(
         RequestDelegate next,
         ILogger<GlobalExceptionHandlerMiddleware> logger,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        TelemetryClient? telemetryClient = null)
     {
         _next = next;
         _logger = logger;
         _environment = environment;
+        _telemetryClient = telemetryClient;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -41,6 +46,37 @@ public class GlobalExceptionHandlerMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        var schoolId = context.GetSchoolId() ?? "Unknown";
+        var userId = context.GetUserId() ?? "Unknown";
+        var correlationId = context.TraceIdentifier;
+
+        // Prepare exception properties
+        var properties = new Dictionary<string, string>
+        {
+            { "SchoolId", schoolId },
+            { "UserId", userId },
+            { "CorrelationId", correlationId },
+            { "Path", context.Request.Path },
+            { "Method", context.Request.Method },
+            { "QueryString", context.Request.QueryString.ToString() }
+        };
+
+        // Track exception in Application Insights
+        if (_telemetryClient != null)
+        {
+            _telemetryClient.TrackException(exception, properties);
+
+            // Set severity level based on exception type
+            var severity = exception is ArgumentException 
+                ? SeverityLevel.Warning 
+                : SeverityLevel.Error;
+
+            _telemetryClient.TrackTrace(
+                $"Exception: {exception.Message}",
+                severity,
+                properties);
+        }
+
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = exception switch
         {

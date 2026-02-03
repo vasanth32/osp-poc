@@ -10,6 +10,7 @@ public class FeeService : IFeeService
     private readonly FeeDbContext _context;
     private readonly IS3Service _s3Service;
     private readonly ILogger<FeeService> _logger;
+    private readonly ITelemetryService _telemetryService;
     private static readonly Regex S3UrlPattern = new(
         @"^https?://[^/]+\.s3[^/]*\.amazonaws\.com/.+$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -17,15 +18,19 @@ public class FeeService : IFeeService
     public FeeService(
         FeeDbContext context,
         IS3Service s3Service,
-        ILogger<FeeService> logger)
+        ILogger<FeeService> logger,
+        ITelemetryService telemetryService)
     {
         _context = context;
         _s3Service = s3Service;
         _logger = logger;
+        _telemetryService = telemetryService;
     }
 
     public async Task<FeeResponse> CreateFeeAsync(CreateFeeRequest request, string schoolId, string userId)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
         try
         {
             _logger.LogInformation(
@@ -94,18 +99,36 @@ public class FeeService : IFeeService
             _context.Fees.Add(fee);
             await _context.SaveChangesAsync();
 
+            stopwatch.Stop();
+
+            // Track custom telemetry
+            _telemetryService.TrackFeeCreated(schoolId, request.FeeType.ToString(), request.Amount);
+            _telemetryService.TrackCustomMetric("FeeCreationDurationMs", stopwatch.ElapsedMilliseconds, 
+                new Dictionary<string, string> { { "SchoolId", schoolId } });
+
             _logger.LogInformation(
-                "Fee created successfully: FeeId={FeeId}, SchoolId={SchoolId}, Title={Title}",
-                fee.Id, schoolId, fee.Title);
+                "Fee created successfully: FeeId={FeeId}, SchoolId={SchoolId}, Title={Title}, Duration={Duration}ms",
+                fee.Id, schoolId, fee.Title, stopwatch.ElapsedMilliseconds);
 
             // Map to FeeResponse
             return fee.ToResponse();
         }
         catch (DbUpdateException ex)
         {
+            stopwatch.Stop();
+            
             _logger.LogError(ex,
                 "Database error while creating fee. SchoolId={SchoolId}, UserId={UserId}",
                 schoolId, userId);
+            
+            // Track exception with context
+            _telemetryService.TrackException(ex, new Dictionary<string, string>
+            {
+                { "SchoolId", schoolId },
+                { "UserId", userId },
+                { "Operation", "CreateFee" },
+                { "ExceptionType", "DbUpdateException" }
+            });
             
             // Check for unique constraint violations or other DB errors
             if (ex.InnerException?.Message.Contains("UNIQUE") == true)
@@ -117,16 +140,40 @@ public class FeeService : IFeeService
         }
         catch (ArgumentException ex)
         {
+            stopwatch.Stop();
+            
             _logger.LogWarning(ex,
                 "Invalid argument while creating fee. SchoolId={SchoolId}, UserId={UserId}",
                 schoolId, userId);
+            
+            // Track validation errors
+            _telemetryService.TrackException(ex, new Dictionary<string, string>
+            {
+                { "SchoolId", schoolId },
+                { "UserId", userId },
+                { "Operation", "CreateFee" },
+                { "ExceptionType", "ArgumentException" }
+            });
+            
             throw;
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            
             _logger.LogError(ex,
                 "Unexpected error while creating fee. SchoolId={SchoolId}, UserId={UserId}",
                 schoolId, userId);
+            
+            // Track exception with context
+            _telemetryService.TrackException(ex, new Dictionary<string, string>
+            {
+                { "SchoolId", schoolId },
+                { "UserId", userId },
+                { "Operation", "CreateFee" },
+                { "ExceptionType", ex.GetType().Name }
+            });
+            
             throw new Exception("An unexpected error occurred while creating the fee.", ex);
         }
     }

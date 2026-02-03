@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using Serilog.Sinks.ApplicationInsights;
+using Microsoft.ApplicationInsights.AspNetCore.Extensions;
 using FeeManagementService.Data;
 using FeeManagementService.Configuration;
 using FeeManagementService.Services;
@@ -18,19 +20,49 @@ using FeeManagementService.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure Application Insights
+var applicationInsightsOptions = new ApplicationInsightsServiceOptions
+{
+    ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"],
+    EnableAdaptiveSampling = builder.Configuration.GetValue<bool>("ApplicationInsights:EnableAdaptiveSampling", true),
+    EnablePerformanceCounterCollectionModule = builder.Configuration.GetValue<bool>("ApplicationInsights:EnablePerformanceCounterCollectionModule", true),
+    EnableQuickPulseMetricStream = builder.Configuration.GetValue<bool>("ApplicationInsights:EnableQuickPulseMetricStream", true),
+    EnableRequestTrackingTelemetryModule = true,
+    EnableDependencyTrackingTelemetryModule = true,
+    EnableEventCounterCollectionModule = true,
+    EnableAppServicesHeartbeatTelemetryModule = true,
+    EnableAzureInstanceMetadataTelemetryModule = true
+};
+
+// Only add Application Insights if connection string is provided
+if (!string.IsNullOrWhiteSpace(applicationInsightsOptions.ConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(applicationInsightsOptions);
+}
+
 // Configure Serilog
-Log.Logger = new LoggerConfiguration()
+var loggerConfig = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "FeeManagementService")
+    .Enrich.WithProperty("Environment", builder.Environment.EnvironmentName)
     .WriteTo.Console(
         outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
     .WriteTo.File(
         path: "logs/fee-management-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 30,
-        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .CreateLogger();
+        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+
+// Add Application Insights sink if connection string is provided
+if (!string.IsNullOrWhiteSpace(applicationInsightsOptions.ConnectionString))
+{
+    loggerConfig.WriteTo.ApplicationInsights(
+        serviceProvider: builder.Services.BuildServiceProvider(),
+        telemetryConverter: TelemetryConverter.Traces);
+}
+
+Log.Logger = loggerConfig.CreateLogger();
 
 builder.Host.UseSerilog();
 
@@ -103,6 +135,17 @@ builder.Services.AddScoped<IFeeService, FeeService>();
 
 // Register JWT Token Service
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+
+// Register Telemetry Service (only if Application Insights is configured)
+if (!string.IsNullOrWhiteSpace(applicationInsightsOptions.ConnectionString))
+{
+    builder.Services.AddSingleton<ITelemetryService, TelemetryService>();
+}
+else
+{
+    // Use a no-op implementation when Application Insights is not configured
+    builder.Services.AddSingleton<ITelemetryService, NoOpTelemetryService>();
+}
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
